@@ -4,6 +4,8 @@ import com.bulenkov.darcula.DarculaLaf;
 import com.convexcreative.ezlogger.ConvexLogger;
 import com.convexcreative.ezlogger.LoggerEvent;
 import com.convexcreative.pposcinterpreter.enu.ClipType;
+import com.convexcreative.pposcinterpreter.manager.ProPresManager;
+import com.convexcreative.pposcinterpreter.manager.ResolumeManager;
 import com.convexcreative.pposcinterpreter.obj.ClipData;
 import com.convexcreative.pposcinterpreter.obj.ProjectData;
 import com.convexcreative.propres.ProPresAPI;
@@ -13,20 +15,15 @@ import com.convexcreative.propres.event.slide.SlideChangeEvent;
 import com.convexcreative.propres.serializable.Slide;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.stream.MalformedJsonException;
 import com.illposed.osc.OSCMessage;
 import com.illposed.osc.OSCSerializeException;
-import com.illposed.osc.transport.udp.OSCPort;
 import com.illposed.osc.transport.udp.OSCPortOut;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.desktop.AboutEvent;
-import java.awt.desktop.AboutHandler;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Scanner;
@@ -36,12 +33,15 @@ public class Main {
     private static JTextArea hostTextArea;
     private static JTextArea logArea;
     private static JFrame frame;
-    private static OSCPortOut portOut = null;
 
-    private static boolean firstAPIinit = true;
+    private static JLabel ppStatusLabel;
+    private static JLabel oscStatusLabel;
+    private static boolean firstInit = true;
 
-    private static final String VERSION = "v0.2";
+    private static final String VERSION = "v0.3";
 
+    public static ProPresManager proPresManager = new ProPresManager(null);
+    public static ResolumeManager resolumeManager = new ResolumeManager(null);
 
     public static void main(String... args){
 
@@ -83,27 +83,62 @@ public class Main {
         JPanel mainPanel = new JPanel(new GridBagLayout());
         frame.add(mainPanel,gbc);
 
+        // status leds
+
+        JPanel statusPanel = new JPanel(new GridBagLayout());
+        statusPanel.setBorder(BorderFactory.createRaisedSoftBevelBorder());
+
+        ppStatusLabel = new JLabel("---pp");
+        oscStatusLabel = new JLabel("---osc");
+
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+
+        updateStatus("pp", false);
+        updateStatus("osc", false);
+
+
+        mainPanel.add(new JLabel("Status"),gbc);
+
+        gbc.gridy = 1;
+
+        statusPanel.add(ppStatusLabel, gbc);
+
+        gbc.gridy = 2;
+
+        statusPanel.add(oscStatusLabel, gbc);
+
+        gbc.gridy = 1;
+        gbc.gridx = 0;
+
+        mainPanel.add(statusPanel, gbc);
+
+
+        // ---
+
+
         hostTextArea = new JTextArea("\nLoad file to view project info...\n");
         hostTextArea.setSize(300,300);
         hostTextArea.setEditable(false);
 
         mainPanel.add(new JLabel("Project Info\n"), gbc);
-        gbc.gridy = 1;
+        gbc.gridy = 2;
 
         mainPanel.setBorder(BorderFactory.createLoweredSoftBevelBorder());
+
         mainPanel.add(hostTextArea, gbc);
 
         // BUTTONS INIT --------------
 
         JPanel buttonPanel = new JPanel(new GridBagLayout());
 
-        gbc.gridy = 2;
+        gbc.gridy = 3;
         gbc.gridx = 0;
         mainPanel.add(buttonPanel, gbc);
 
         // load project button
         gbc.gridx = 0;
-        gbc.gridy = 2;
+        gbc.gridy = 3;
 
         JButton loadProjectButton = new JButton("Load Project");
         loadProjectButton.addActionListener(new ActionListener() {
@@ -124,7 +159,7 @@ public class Main {
         // generate project button
 
         gbc.gridx = 1;
-        gbc.gridy = 2;
+        gbc.gridy = 3;
 
         JButton generateProjectButton = new JButton("Generate Example Project");
         generateProjectButton.addActionListener(new ActionListener() {
@@ -168,14 +203,40 @@ public class Main {
 
 
 
-        gbc.gridy = 3;
+        gbc.gridy = 4;
         gbc.gridx = 0;
         mainPanel.add(new JLabel("Log\n"), gbc);
-        gbc.gridy = 4;
+        gbc.gridy = 5;
 
         mainPanel.add(logArea, gbc);
 
         frame.setVisible(true);
+
+    }
+
+    public static void updateStatus(String type, boolean connection){
+        if(type.equalsIgnoreCase("pp")){
+
+            if(connection){
+                ppStatusLabel.setForeground(Color.GREEN);
+                ppStatusLabel.setText("ProPres: CONNECTED.");
+            }else{
+                ppStatusLabel.setForeground(Color.RED);
+                ppStatusLabel.setText("ProPres: NOT CONNECTED.");
+            }
+
+        }else if(type.equalsIgnoreCase("osc")){
+
+            if(connection){
+                oscStatusLabel.setForeground(Color.GREEN);
+                oscStatusLabel.setText("OSC: RUNNING.");
+            }else{
+                oscStatusLabel.setForeground(Color.RED);
+                oscStatusLabel.setText("OSC: NOT RUNNING.");
+            }
+
+
+        }
     }
 
     public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -198,7 +259,26 @@ public class Main {
         input.close();
         ProjectData data = GSON.fromJson(text, ProjectData.class);
 
-        loadOscServer(new InetSocketAddress(data.getOscHost(), Integer.parseInt(data.getOscPort())));
+
+        // LOAD SERVERS
+
+
+        resolumeManager.setProjectData(data);
+        proPresManager.setProjectData(data);
+
+        proPresManager.updateInstance();
+
+
+        if(firstInit){
+            resolumeManager.initialize();
+            proPresManager.initialize();
+            firstInit = false;
+        }
+
+        resolumeManager.connect();
+        proPresManager.connect();
+
+        //----------------------
 
         String fileInfo = "\n";
 
@@ -230,104 +310,6 @@ public class Main {
 
         hostTextArea.setText(fileInfo);
 
-        ProPresAPIConfig config = new ProPresAPIConfig( data.getProHost() + ":" + data.getProPort(), data.getProPassword(), ProPresAPIConfig.V6);
-
-        ProPresAPI api = ProPresAPI.getInstance(config);
-
-        if(firstAPIinit){
-            api.registerRecurringEvent(new ServerDisconnectEvent() {
-                @Override
-                public void run() {
-                    int code = (int) getEventMetadata()[1];
-                    if(code == 1006){
-                        ConvexLogger.log("PPAPI", "Disconnected from remote host. Reinitializing server... (1006)");
-                        api.openConnection();
-                    }
-                }
-            });
-            firstAPIinit = false;
-        }
-
-        api.closeConnection();
-        api.openConnection();
-
-        api.registerRecurringEvent(new SlideChangeEvent() {
-            @Override
-            public void run() {
-
-                Slide s = (Slide) getEventMetadata()[0];
-
-               ProPresAPI.log("MSG RECEIVED: " + s.getSlideText());
-
-               for(ClipData clip : data.getClips()){
-
-                   String msg = "/composition/layers/" + clip.getLayer() + "/clips/" + clip.getClip() + "/video/source/";
-
-                   if(clip.getType() == ClipType.TEXT_ANIMATOR){
-                       msg += "textgenerator/";
-                   }else{
-                       msg += "blocktextgenerator/";
-                   }
-
-                   msg += "text/params/lines";
-
-                   ArrayList<String> textArray = new ArrayList<>();
-                   String text = "";
-                   if(!clip.removeLinebreaks()) {
-                       for (String sl : s.getSplitSlideText()) {
-                           switch (clip.getTextTransform()){
-                               case ALL_LOWERCASE:
-                                   text+= sl.toLowerCase() + "\n";
-                                   break;
-                               case ALL_UPPERCASE:
-                                   text+= sl.toUpperCase() + "\n";
-                                   break;
-                               default:
-                                   text+= sl + "\n";
-                           }
-                       }
-                   }else{
-                       switch (clip.getTextTransform()){
-                           case ALL_LOWERCASE:
-                               text = s.getSlideText().toLowerCase();
-                               break;
-                           case ALL_UPPERCASE:
-                               text = s.getSlideText().toUpperCase();
-                               break;
-                           default:
-                               text = s.getSlideText();
-                       }
-                   }
-
-                   if(clip.getRepeat() > 0){
-                       for(int i = 0; i < clip.getRepeat(); i++){
-                           text = text + text;
-                       }
-                   }
-
-                   textArray.add(text);
-
-                   final OSCMessage oscMSG = new OSCMessage(msg, textArray);
-
-                   ConvexLogger.log("OSC", "COMPILED MSG --> " + msg);
-
-
-                   try {
-                       portOut.send(oscMSG);
-                   } catch (IOException e) {
-                       ConvexLogger.log("OSC", "Error sending OSC data... (" + e.getMessage() + ")");
-                   } catch (OSCSerializeException e) {
-                       ConvexLogger.log("OSC", "Error sending OSC data... (" + e.getMessage() + ")");
-                   }
-                   ConvexLogger.log("OSC", "Sending data for " + clip.getLayer() + "/" + clip.getClip());
-               }
-
-            }
-        });
-
-
-
-
     }
 
     public static void saveFile(File toSave){
@@ -354,35 +336,5 @@ public class Main {
 
         loadFile(file);
     }
-
-    static boolean oscServerRunning = false;
-    public static void loadOscServer(InetSocketAddress addy) {
-
-        if (oscServerRunning = true && portOut != null) {
-            ConvexLogger.log("OSC", "Closing current OSC server... " + (portOut.getRemoteAddress().toString()));
-            try {
-                portOut.close();
-                oscServerRunning = false;
-            } catch (IOException e) {
-                ConvexLogger.log("OSC", "Error closing OSC server... (" + e.getMessage() + ")");
-                return;
-            }
-
-            oscServerRunning = false;
-
-        }
-
-        ConvexLogger.log("OSC", "Loading OSC server... + (" + addy.toString() + ")");
-        try {
-            portOut = new OSCPortOut(addy);
-        } catch (IOException e) {
-            ConvexLogger.log("[OSC]", "Could not open OSC socket... (" + e.getMessage() + ")");
-            return;
-        }
-        ConvexLogger.log("OSC", "OSC Server successfully initialized!");
-        oscServerRunning = true;
-
-    }
-
 
 }
