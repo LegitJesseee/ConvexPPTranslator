@@ -2,6 +2,7 @@ package com.convexcreative.pposcinterpreter.obj;
 
 import com.convexcreative.pposcinterpreter.enu.ClipType;
 import com.convexcreative.pposcinterpreter.enu.TextTransform;
+import com.google.gson.annotations.SerializedName;
 
 public class ClipData {
 
@@ -9,6 +10,7 @@ public class ClipData {
     public final static int DEF_CLIP  = 1;
     public final static ClipType DEF_TYPE = ClipType.TEXT_ANIMATOR;
     public final static boolean DEF_BREAKLINE = false;
+    public final static String DEF_BREAK_STRING = " / ";
     public final static TextTransform DEF_TEXT_TRANSFORM = TextTransform.NONE;
     public final static int DEF_REPEAT = 0;
 
@@ -32,6 +34,9 @@ public class ClipData {
 
     private boolean removeLinebreaks = DEF_BREAKLINE;
 
+    @SerializedName("lineSplitter")
+    private String breakLineString = DEF_BREAK_STRING;
+
     public int getLayer(){
         return layer;
     }
@@ -54,6 +59,10 @@ public class ClipData {
 
     public boolean removeLinebreaks(){
         return removeLinebreaks;
+    }
+
+    public String getBreakLineString(){
+        return breakLineString;
     }
 
     public TextTransform getTextTransform(){

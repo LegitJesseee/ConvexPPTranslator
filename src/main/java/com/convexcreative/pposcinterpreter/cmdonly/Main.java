@@ -23,6 +23,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.AdjustmentEvent;
+import java.awt.event.AdjustmentListener;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -82,7 +84,6 @@ public class Main {
 
         JPanel mainPanel = new JPanel(new GridBagLayout());
         frame.add(mainPanel,gbc);
-
         // status leds
 
         JPanel statusPanel = new JPanel(new GridBagLayout());
@@ -194,13 +195,19 @@ public class Main {
         logArea.setSize(300,300);
         logArea.setEditable(false);
 
+        JScrollPane scrollPane = new JScrollPane(logArea);
+
+
         ConvexLogger.registerTask(new LoggerEvent() {
             @Override
             public void run(String s) {
                 logArea.setText(s);
+                scrollPane.getVerticalScrollBar().setValue(scrollPane.getMaximumSize().height);
             }
         });
 
+        scrollPane.setMinimumSize(new Dimension(100,150));
+        scrollPane.setMaximumSize(new Dimension(100,150));
 
 
         gbc.gridy = 4;
@@ -208,7 +215,9 @@ public class Main {
         mainPanel.add(new JLabel("Log\n"), gbc);
         gbc.gridy = 5;
 
-        mainPanel.add(logArea, gbc);
+        mainPanel.add(scrollPane, gbc);
+
+        mainPanel.setSize(1000,1000);
 
         frame.setVisible(true);
 

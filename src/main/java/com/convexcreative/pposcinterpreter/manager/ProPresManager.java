@@ -17,12 +17,14 @@ import com.illposed.osc.OSCSerializeException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Timer;
 import java.util.TimerTask;
 
 public class ProPresManager extends ConvexServerConnection {
 
     private ProPresAPI api;
+    private ProPresAPIConfig config;
 
     public ProPresManager(ProjectData projectData) {
         super(projectData);
@@ -51,41 +53,53 @@ public class ProPresManager extends ConvexServerConnection {
 
                     msg += "text/params/lines";
 
+
                     ArrayList<String> textArray = new ArrayList<>();
-                    String text = "";
-                    if(!clip.removeLinebreaks()) {
-                        for (String sl : s.getSplitSlideText()) {
-                            switch (clip.getTextTransform()){
-                                case ALL_LOWERCASE:
-                                    text+= sl.toLowerCase() + "\n";
-                                    break;
-                                case ALL_UPPERCASE:
-                                    text+= sl.toUpperCase() + "\n";
-                                    break;
-                                default:
-                                    text+= sl + "\n";
-                            }
-                        }
-                    }else{
-                        switch (clip.getTextTransform()){
-                            case ALL_LOWERCASE:
-                                text = s.getSlideText().toLowerCase();
-                                break;
-                            case ALL_UPPERCASE:
-                                text = s.getSlideText().toUpperCase();
-                                break;
-                            default:
-                                text = s.getSlideText();
-                        }
+                    StringBuilder stringBuilder = new StringBuilder();
+
+                    //if the slide is blank, just send a blank message instead of processing
+                    if(s.getSlideText().replaceAll(" ","").equalsIgnoreCase("")) {
+
+                        textArray.add("");
+                        Main.resolumeManager.sendOSCMessage(msg, textArray);
+
+
                     }
 
+
+                        // bring each line into the stringbuilder with the breakline string between
+                    Arrays.stream(s.getSplitSlideText()).forEach(line -> stringBuilder.append(line + clip.getBreakLineString()));
+
+                    //delete extra breakline at end
+                    stringBuilder.delete(stringBuilder.length() - clip.getBreakLineString().length(), stringBuilder.length());
+
+                    //repeat string
                     if(clip.getRepeat() > 0){
+
                         for(int i = 0; i < clip.getRepeat(); i++){
-                            text = text + text;
+                            stringBuilder.append(clip.getBreakLineString() + stringBuilder.toString());
                         }
+
                     }
 
-                    textArray.add(text);
+                    //transform string
+                    final String transform = stringBuilder.toString();
+                    stringBuilder.setLength(0);
+
+
+                    switch(clip.getTextTransform()){
+                        case ALL_LOWERCASE:
+                            stringBuilder.append(transform.toLowerCase());
+                            break;
+                        case ALL_UPPERCASE:
+                            stringBuilder.append(transform.toUpperCase());
+                            break;
+                        case NONE:
+                        default:
+                            stringBuilder.append(transform);
+                    }
+
+                    textArray.add(stringBuilder.toString());
                     Main.resolumeManager.sendOSCMessage(msg, textArray);
             }
         }
@@ -139,7 +153,12 @@ public class ProPresManager extends ConvexServerConnection {
 
 
         // start new connection
-        api.openConnection();
+        try {
+            api.openConnection(config);
+        }catch(IllegalThreadStateException e){
+            System.out.println("----ERROR: " + e.getMessage());
+            e.printStackTrace();
+        }
 
     }
 
@@ -149,7 +168,7 @@ public class ProPresManager extends ConvexServerConnection {
     }
 
     public void updateInstance(){
-        ProPresAPIConfig config = new ProPresAPIConfig( getProjectData().getProHost() + ":" + getProjectData().getProPort(), getProjectData().getProPassword(), ProPresAPIConfig.V6);
+        config = new ProPresAPIConfig( getProjectData().getProHost() + ":" + getProjectData().getProPort(), getProjectData().getProPassword(), ProPresAPIConfig.V6);
         api = ProPresAPI.getInstance(config);
     }
 }
