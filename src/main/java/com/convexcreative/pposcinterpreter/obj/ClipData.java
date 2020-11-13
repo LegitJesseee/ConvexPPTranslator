@@ -9,7 +9,6 @@ public class ClipData {
     public final static int DEF_LAYER = 1;
     public final static int DEF_CLIP  = 1;
     public final static ClipType DEF_TYPE = ClipType.TEXT_ANIMATOR;
-    public final static boolean DEF_BREAKLINE = false;
     public final static String DEF_BREAK_STRING = " / ";
     public final static TextTransform DEF_TEXT_TRANSFORM = TextTransform.NONE;
     public final static int DEF_REPEAT = 0;
@@ -18,7 +17,6 @@ public class ClipData {
         this.layer = layer;
         this.clip = clip;
         this.type = type;
-        this.removeLinebreaks = removeLinebreaks;
         this.textTransform = textTransform;
     }
 
@@ -31,8 +29,6 @@ public class ClipData {
     private ClipType type = DEF_TYPE;
 
     private TextTransform textTransform = DEF_TEXT_TRANSFORM;
-
-    private boolean removeLinebreaks = DEF_BREAKLINE;
 
     @SerializedName("lineSplitter")
     private String breakLineString = DEF_BREAK_STRING;
@@ -57,9 +53,6 @@ public class ClipData {
         return type == null ? DEF_TYPE : type;
     }
 
-    public boolean removeLinebreaks(){
-        return removeLinebreaks;
-    }
 
     public String getBreakLineString(){
         return breakLineString;
@@ -76,16 +69,12 @@ public class ClipData {
     public void setRepeat(int repeat){
         this.repeat = repeat;
     }
-    public void setRemoveLinebreaks(boolean removeLinebreaks){
-        this.removeLinebreaks = removeLinebreaks;
-    }
 
     public boolean sameAs(ClipData data){
         return
                 data.layer == layer
                 && data.clip == clip
-                && data.type == type
-                && data.removeLinebreaks == true;
+                && data.type == type;
     }
 
 }
